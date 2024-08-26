@@ -74,14 +74,17 @@ func (r *Router) Option(path string, handler http.Handler, middleware ...Middlew
 	r.createMethodHandle(path, http.MethodOptions, handler, middleware...)
 }
 
+func (r *Router) Static(pathPrefix, directory string) {
+	fs := http.FileServer(http.Dir(directory))
+	r.Get(pathPrefix+"/", http.StripPrefix(pathPrefix, fs))
+}
+
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	path := req.URL.Path
 	result, err := r.tree.Search(method, path)
 	if err != nil {
-		status, body := handleErr(err)
-		w.WriteHeader(status)
-		w.Write(body)
+		errorHandler(w, req, err)
 		return
 	}
 

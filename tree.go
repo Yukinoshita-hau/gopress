@@ -113,7 +113,7 @@ func (t *Tree) Search(method string, path string) (*result, error) {
 		for _, p := range explodePath(path) {
 			nextNode, ok := curNode.children[p]
 			if !ok {
-				if p == curNode.label {
+				if p == curNode.label || curNode.actions[method] != nil {
 					break
 				} else {
 					return nil, ErrNotFound
