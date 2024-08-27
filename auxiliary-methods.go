@@ -8,21 +8,21 @@ import (
 )
 
 type Request struct {
-	httpRequest *http.Request
+	HttpRequest *http.Request
 }
 
 func NewRequest(r *http.Request) *Request {
 	return &Request{
-		httpRequest: r,
+		HttpRequest: r,
 	}
 }
 
 func (r *Request) GetHeader(key string) string {
-	return r.httpRequest.Header.Get(key)
+	return r.HttpRequest.Header.Get(key)
 }
 
 func (r *Request) GetBody() ([]byte, error) {
-	body, err := io.ReadAll(r.httpRequest.Body)
+	body, err := io.ReadAll(r.HttpRequest.Body)
 
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (r *Request) GetBody() ([]byte, error) {
 
 func (r *Request) GetBodyAndConvertInJson() (map[string]interface{}, error) {
 	var data map[string]interface{}
-	err := json.NewDecoder(r.httpRequest.Body).Decode(&data)
+	err := json.NewDecoder(r.HttpRequest.Body).Decode(&data)
 	if err != nil {
 		return nil, errors.New("failed convert body to json")
 	}
@@ -41,5 +41,5 @@ func (r *Request) GetBodyAndConvertInJson() (map[string]interface{}, error) {
 }
 
 func (r *Request) GetParam(key string) string {
-	return r.httpRequest.Context().Value(key).(string)
+	return r.HttpRequest.Context().Value(key).(string)
 }
