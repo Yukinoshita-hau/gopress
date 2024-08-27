@@ -10,6 +10,6 @@ var errorHandler ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err
 	w.Write(body)
 }
 
-func (r *Router) setErrorHandler(handler ErrorHandler) {
+func (r *Router) SetErrorHandler(handler ErrorHandler) {
 	errorHandler = handler
 }
