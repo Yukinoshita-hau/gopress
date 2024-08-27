@@ -1,6 +1,9 @@
 package gopress
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 type Router struct {
 	tree *Tree
@@ -82,13 +85,30 @@ func (r *Router) Static(pathPrefix, directory string) {
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	path := req.URL.Path
-	result, err := r.tree.Search(method, path)
+	result, params, err := r.tree.Search(method, path)
 	if err != nil {
 		errorHandler(w, req, err)
 		return
 	}
 
+	if result == nil || result.Actions == nil || result.Actions.Handler == nil {
+        http.Error(w, "Handler not found", http.StatusNotFound)
+        return
+    }
+
 	finalHandler := result.Actions.Handler
+
+	if len(params) > 0 {
+		finalHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := req.Context()
+			for key, value := range params {
+				ctx = context.WithValue(ctx, key, value)
+			}
+			req = req.WithContext(ctx)
+			result.Actions.Handler.ServeHTTP(w, req)
+		})
+	}
+
 	for i := len(result.Middlewares) - 1; i >= 0; i-- {
 		finalHandler = result.Middlewares[i](finalHandler)
 	}

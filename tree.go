@@ -24,9 +24,11 @@ type Tree struct {
 type Middleware func(next http.Handler) http.Handler
 
 type node struct {
-	label    string
-	actions  map[string]*action
-	children map[string]*node  
+	label    	string
+	isParam  	bool
+	paramName 	string
+	actions  	map[string]*action
+	children 	map[string]*node  
 	middlewares []Middleware
 }
 
@@ -56,34 +58,56 @@ func NewTree() *Tree {
 
 func (t *Tree) Insert(methods []string, path string, handler http.Handler, middlewares ...Middleware) {
     curNode := t.node
+	if curNode == nil {
+		panic("Tree node is nil")
+	}
+	
     if path == pathRoot {
         curNode.label = path
+		if curNode.actions == nil {
+			curNode.actions = make(map[string]*action)
+		}
         for _, method := range methods {
             curNode.actions[method] = &action{
                 Handler: handler,
             }
         }
 		curNode.middlewares = append(curNode.middlewares, middlewares...)
+		return
     }
 	ep := explodePath(path)
 
 	for i, p := range ep {
-		nextNode, ok := curNode.children[p]
-		if ok {
-			curNode = nextNode
+		isParam := strings.HasPrefix(p, ":")
+		paramName := ""
+		if isParam {
+			paramName = p[1:]
+			p = ":"
 		}
-
+		
+		nextNode, ok := curNode.children[p]		
 		if !ok {
+			if curNode.children == nil {
+				curNode.children = make(map[string]*node)
+			}
 			curNode.children[p] = &node{
 				label: p,
+				isParam: isParam,
+				paramName: paramName,
 				actions: make(map[string]*action),
 				children: make(map[string]*node),
+				middlewares: make([]Middleware, 0),
 			}
 			curNode = curNode.children[p]
+		} else {
+			curNode = nextNode
 		}
 
 		if i == len(ep) - 1 {
 			curNode.label = p
+			if curNode.actions == nil {
+				curNode.actions = make(map[string]*action)
+			}
 			for _, method := range methods {
 				curNode.actions[method] = &action{
 					Handler: handler,
@@ -106,27 +130,33 @@ func explodePath(path string) []string {
 	return r
 }
 
-func (t *Tree) Search(method string, path string) (*result, error) {
+func (t *Tree) Search(method string, path string) (*result, map[string]string, error) {
 	result := NewResult()
 	curNode := t.node
+	params := make(map[string]string)
+
 	if path != pathRoot {
 		for _, p := range explodePath(path) {
 			nextNode, ok := curNode.children[p]
 			if !ok {
-				if p == curNode.label || curNode.actions[method] != nil {
-					break
-				} else {
-					return nil, ErrNotFound
+				for _, childNode := range curNode.children {
+					if childNode.isParam {
+						nextNode = childNode
+						params[childNode.paramName] = p
+						break
+					}
+				}
+				if nextNode == nil {
+					return nil, nil, ErrNotFound
 				}
 			}
 			curNode = nextNode
-			continue
 		}
 	}
 	result.Actions = curNode.actions[method]
 	result.Middlewares = append(result.Middlewares, curNode.middlewares...)
 	if result.Actions == nil {
-		return nil, ErrMethodNotAllowed
+		return nil, nil, ErrMethodNotAllowed
 	}
-	return result, nil
+	return result, params, nil
 }
