@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> 25e69e5125932f7b6bbc9085acc0ce9fdcb9b3ad
 # Custom HTTP Router in Go
 
 This project is a simple HTTP router implemented in Go. It allows you to define routes, attach middleware, serve static files, and handle errors in a customizable way.
@@ -10,6 +13,10 @@ This project is a simple HTTP router implemented in Go. It allows you to define 
 - [Usage](#usage)
 - [Examples](#examples)
 - [Documentation](#documentation)
+<<<<<<< HEAD
+=======
+- [License](#license)
+>>>>>>> 25e69e5125932f7b6bbc9085acc0ce9fdcb9b3ad
 
 ## Features
 
@@ -27,6 +34,7 @@ To install this package, clone the repository and build it using Go:
 ```bash
 git clone <repository-url>
 cd <repository-directory>
+<<<<<<< HEAD
 go build
 ```
 
@@ -127,3 +135,6 @@ app.SetErrorHandler(func(w http.ResponseWriter, r *http.Request, err error) {
     // Custom error handling logic
 })
 ```
+=======
+go build
+>>>>>>> 25e69e5125932f7b6bbc9085acc0ce9fdcb9b3ad
