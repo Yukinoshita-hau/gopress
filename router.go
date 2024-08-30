@@ -2,7 +2,11 @@ package gopress
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
 type Router struct {
@@ -78,8 +82,33 @@ func (r *Router) Option(path string, handler http.Handler, middleware ...Middlew
 }
 
 func (r *Router) Static(pathPrefix, directory string) {
-	fs := http.FileServer(http.Dir(directory))
-	r.Get(pathPrefix+"/", http.StripPrefix(pathPrefix, fs))
+	pattern := "<pre>\n"
+	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			pattern += "	<a href=\"" + pathPrefix + "/" + info.Name() + "\">" + info.Name() + "</a>\n"
+			r.Get(pathPrefix+"/"+info.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Fprint(w, string(data))
+			}))
+		}
+		return nil
+	})
+	pattern += "</pre>"
+	r.Get(pathPrefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, pattern)
+	}))
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
