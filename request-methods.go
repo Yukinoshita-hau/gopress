@@ -41,5 +41,9 @@ func (r *Request) GetBodyAndConvertInJson() (map[string]interface{}, error) {
 }
 
 func (r *Request) GetParam(key string) string {
-	return r.HttpRequest.Context().Value(key).(string)
+	value := r.HttpRequest.Context().Value(key)
+	if value == nil {
+		value = ""
+	}
+	return value.(string)
 }

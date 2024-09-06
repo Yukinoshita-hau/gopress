@@ -1,129 +1,167 @@
+# Custom HTTP Router Documentation
 
-# Custom HTTP Router in Go
-
-This project is a simple HTTP router implemented in Go. It allows you to define routes, attach middleware, serve static files, and handle errors in a customizable way.
+This Go-based HTTP router provides an efficient way to define routes, middleware, and static file handling, with a customizable error management system. Below is the detailed documentation on its usage and core components.
 
 ## Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Core Components](#core-components)
+- [Middleware](#middleware)
+- [Error Handling](#error-handling)
 - [Examples](#examples)
-- [Documentation](#documentation)
 
 ## Features
 
-- **Route Matching**: Supports dynamic route matching with parameters.
-- **HTTP Methods**: Supports all standard HTTP methods (GET, POST, PUT, DELETE, etc.).
-- **Middleware Support**: Allows attaching middleware to routes and route groups.
-- **Static File Serving**: Supports serving static files from a directory.
-- **Error Handling**: Customizable error handling.
-- **Route Groups**: Supports grouping routes with common prefixes and middlewares.
+- **Route Matching:** Supports dynamic routing with URL parameters.
+- **HTTP Methods Support:** GET, POST, PUT, DELETE, PATCH, etc.
+- **Middleware:** Attach middleware to individual routes or groups.
+- **Static File Serving:** Serve static files easily from a directory.
+- **Custom Error Handling:** Manage 404 and 405 errors, or create your own handlers.
+- **Route Groups:** Create route groups with shared middleware or path prefixes.
 
 ## Installation
 
-To install this package, clone the repository and build it using Go:
-
 ```bash
-git clone <repository-url>
-cd <repository-directory>
-go build
+git clone https://github.com/Yukinoshita-hau/gopress
+cd gopress
 ```
 
 ## Usage
 
-Below is a basic example of how to use the custom router:
+### Create Router
+
+To use the router, first, initialize it using NewRouter(), then define routes, middlewares, and static file handlers.
 
 ```go
-package main
-
-import (
-    "fmt"
-    "net/http"
-)
-
 func main() {
-    // Create a new router
-    app := NewRouter()
+    router := NewRouter()
 
-    // Define a simple route
-    app.Get("/hello", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        fmt.Fprintln(w, "Hello, World!")
+    // Define a GET route
+    router.Get("/hello", HandlerFunction(func(w Response, r *Request) {
+        w.Json(map[string]interface{}{
+            "message": "Hello, World!",
+        }, http.StatusOK)
     }))
 
-    // Serve static files from the "./public" directory
-    app.Static("/static", "./public")
+    // Serve static files
+    router.Static("/static", "./public")
 
-    // Start the HTTP server
-    fmt.Println("Server starting at :8080")
-    http.ListenAndServe(":8080", app)
+    // Start the server
+    router.ListenAndServe(":8080", router)
 }
 ```
 
-## Examples
+## Core Components
 
-### Defining Routes
+### Router
 
-You can define routes using HTTP methods:
+The `Router` struct is the main object used to define routes and handle requests.
+
+**Methods**:
+- `NewRouter() *Router`: Initialize a new router.
+- `ServeHTTP(Response, *Request)`: Core method handling requests.
+- `Get`, `Post`, `Put`, `Delete`, etc.: Register routes for specific HTTP methods.
+- `Static(pathPrefix, directory string)`: Serve static files.
+
+### Route Insertion
+
+Routes are stored in a tree structure (`Tree`). Each node in the tree represents a part of the URL, and dynamic parameters (e.g., `/users/:id`) are supported.
+
+**Example**:
 
 ```go
-app.Get("/users/:id", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    // Handle GET request for a user with a specific ID
+router.Get("/users/:id", HandlerFunction(func(w Response, r *Request) {
+    id := r.GetParam("id")
+    w.Json(map[string]interface{}{"id": id}, http.StatusOK)
 }))
 ```
 
-### Using Middleware
+### Handler
 
-Middleware can be added to routes to perform actions like logging or authentication:
+Handlers process incoming HTTP requests. The library provides a `HandlerFunction` type for convenient inline handler creation.
+
+## Middleware
+
+Middleware functions wrap handlers, allowing pre-processing (like logging, authentication, etc.) before the handler is executed. Middlewares can be applied globally, to individual routes, or to route groups.
+
+### Middleware Definition
 
 ```go
-loggingMiddleware := func(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func loggingMiddleware(next Handler) Handler {
+    return HandlerFunction(func(w Response, r *Request) {
         log.Println("Request received")
         next.ServeHTTP(w, r)
     })
 }
+```
 
-app.Get("/secure", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintln(w, "Secure Content")
+**Usage**:
+
+```go
+router.Get("/secure", HandlerFunction(func(w Response, r *Request) {
+    w.Json(map[string]interface{}{"message": "Secure Page"}, http.StatusOK)
 }), loggingMiddleware)
 ```
 
-### Route Groups
+## Error Handling
 
-Route groups allow you to apply common middleware or prefixes to a set of routes:
+### Default Error Responses
+
+The router provides basic 404 (Not Found) and 405 (Method Not Allowed) responses with customizable messages:
 
 ```go
-apiGroup := app.Group("/api", loggingMiddleware)
-apiGroup.Get("/users", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    fmt.Fprintln(w, "User List")
+var (
+    ErrNotFound           = errors.New("Not Found: 404")
+    ErrMethodNotAllowed   = errors.New("Method Not Allowed: 405")
+    Http404Response       = []byte("Page not found")
+    Http405Response       = []byte("Method not allowed")
+)
+```
+
+### Custom Error Handling
+
+You can define a custom error handler using `SetErrorHandler`:
+
+```go
+router.SetErrorHandler(func(w Response, r *Request, err error) {
+    status, body := handleErr(err)
+    JsonErrorResponse(w, status, string(body))
+})
+```
+
+## Examples
+
+### Route Grouping
+
+Group routes under a common path with shared middleware:
+
+```go
+apiGroup := router.Group("/api", loggingMiddleware)
+
+apiGroup.Get("/users", HandlerFunction(func(w Response, r *Request) {
+    w.Json(map[string]interface{}{"users": "List of users"}, http.StatusOK)
 }))
 ```
 
-## Documentation
+### Static Files
 
-### Core Components
-
-- **Router**: The main entry point to define routes and groups.
-- **Middleware**: Functions that wrap HTTP handlers to provide additional functionality.
-- **Tree**: Represents the routing tree structure where all routes are stored.
-- **RouterGroup**: Represents a group of routes with a common prefix and middleware.
-
-### Key Methods
-
-- `NewRouter() *Router`: Creates a new router instance.
-- `Router.Get(path string, handler http.Handler, middleware ...Middleware)`: Registers a new GET route.
-- `Router.Post(path string, handler http.Handler, middleware ...Middleware)`: Registers a new POST route.
-- `Router.Static(pathPrefix, directory string)`: Serves static files from the given directory.
-- `Router.ServeHTTP(w http.ResponseWriter, req *http.Request)`: Handles incoming HTTP requests.
-- `Router.Group(prefix string, middlewares ...Middleware) *RouterGroup`: Creates a new route group.
-
-### Error Handling
-
-The router provides a default error handler but allows you to define custom error handlers:
+Serve static files easily from a directory:
 
 ```go
-app.SetErrorHandler(func(w http.ResponseWriter, r *http.Request, err error) {
-    // Custom error handling logic
-})
+router.Static("/assets", "./static")
 ```
+
+### Handling Parameters
+
+Dynamic URL parameters are accessible using `GetParam()`:
+
+```go
+router.Get("/posts/:id", HandlerFunction(func(w Response, r *Request) {
+    postID := r.GetParam("id")
+    w.Json(map[string]interface{}{"postID": postID}, http.StatusOK)
+}))
+```
+
+This documentation should give you a clear understanding of how to use this HTTP router, as well as the flexibility it provides in handling routes, middleware, and errors.

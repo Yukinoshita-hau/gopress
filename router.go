@@ -9,6 +9,16 @@ import (
 	"path/filepath"
 )
 
+type Handler interface {
+	ServeHTTP(Response, *Request)
+}
+
+type HandlerFunction func(w Response, r *Request)
+
+func (f HandlerFunction) ServeHTTP(w Response, r *Request) {
+	f(w, r)
+}
+
 type Router struct {
 	tree *Tree
 }
@@ -16,7 +26,7 @@ type Router struct {
 type route struct {
 	methods    []string
 	path       string
-	handler    http.Handler
+	handler    Handler
 	middleware []Middleware
 }
 
@@ -35,7 +45,7 @@ func (r *Router) Methods(methods ...string) *Router {
 	return r
 }
 
-func (r *Router) Handler(path string, handler http.Handler, middlewares ...Middleware) {
+func (r *Router) Handler(path string, handler Handler, middlewares ...Middleware) {
 	tmpRoute.handler = handler
 	tmpRoute.path = path
 	tmpRoute.middleware = append(tmpRoute.middleware, middlewares...)
@@ -47,37 +57,37 @@ func (r *Router) Handle() {
 	tmpRoute = &route{}
 }
 
-func (r *Router) createMethodHandle(path string, method string, handler http.Handler, middlewares ...Middleware) {
+func (r *Router) createMethodHandle(path string, method string, handler Handler, middlewares ...Middleware) {
 	r.Methods(method)
 	r.Handler(path, handler, middlewares...)
 	r.Handle()
 }
 
-func (r *Router) Get(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Get(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodGet, handler, middleware...)
 }
 
-func (r *Router) Post(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Post(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodPost, handler, middleware...)
 }
 
-func (r *Router) Delete(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Delete(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodDelete, handler, middleware...)
 }
 
-func (r *Router) Patch(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Patch(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodPatch, handler, middleware...)
 }
 
-func (r *Router) Put(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Put(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodPut, handler, middleware...)
 }
 
-func (r *Router) Head(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Head(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodHead, handler, middleware...)
 }
 
-func (r *Router) Option(path string, handler http.Handler, middleware ...Middleware) {
+func (r *Router) Option(path string, handler Handler, middleware ...Middleware) {
 	r.createMethodHandle(path, http.MethodOptions, handler, middleware...)
 }
 
@@ -90,20 +100,20 @@ func (r *Router) Static(pathPrefix, directory string) {
 
 		if !info.IsDir() {
 			pattern += "	<a href=\"" + pathPrefix + "/" + info.Name() + "\">" + info.Name() + "</a>\n"
-			r.Get(pathPrefix+"/"+info.Name(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Get(pathPrefix+"/"+info.Name(), HandlerFunction(func(w Response, r *Request) {
 				data, err := os.ReadFile(path)
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Fprint(w, string(data))
+				fmt.Fprint(w.HttpResponse, string(data))
 			}))
 		}
 		return nil
 	})
 	pattern += "</pre>"
-	r.Get(pathPrefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, pattern)
+	r.Get(pathPrefix+"/", HandlerFunction(func(w Response, r *Request) {
+		w.HttpResponse.Header().Add("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w.HttpResponse, pattern)
 	}))
 
 	if err != nil {
@@ -111,38 +121,40 @@ func (r *Router) Static(pathPrefix, directory string) {
 	}
 }
 
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	method := req.Method
-	path := req.URL.Path
-	result, params, err := r.tree.Search(method, path)
-	if err != nil {
-		errorHandler(w, req, err)
-		return
-	}
+func (r *Router) ListenAndServe(port string, handle Handler) {
+	http.ListenAndServe(port, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handle.ServeHTTP(Response{w}, &Request{r})
+	}))
+}
 
-	if result == nil || result.Actions == nil || result.Actions.Handler == nil {
-        http.Error(w, "Handler not found", http.StatusNotFound)
+func (r *Router) ServeHTTP(w Response, req *Request) {
+    method := req.HttpRequest.Method
+    path := req.HttpRequest.URL.Path
+    result, params, err := r.tree.Search(method, path)
+    if err != nil {
+        errorHandler(w, req, err)
         return
     }
 
-	finalHandler := result.Actions.Handler
+    if result == nil || result.Actions == nil || result.Actions.Handler == nil {
+        http.Error(w.HttpResponse, "Handler not found", http.StatusNotFound)
+        return
+    }
 
-	if len(params) > 0 {
-		finalHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := req.Context()
-			for key, value := range params {
-				ctx = context.WithValue(ctx, key, value)
-			}
-			req = req.WithContext(ctx)
-			result.Actions.Handler.ServeHTTP(w, req)
-		})
-	}
+    finalHandler := result.Actions.Handler
+    if len(params) > 0 {
+        ctx := req.HttpRequest.Context()
+        for key, value := range params {
+            ctx = context.WithValue(ctx, key, value)
+        }
+        req.HttpRequest = req.HttpRequest.WithContext(ctx)
+    }
 
-	for i := len(result.Middlewares) - 1; i >= 0; i-- {
-		finalHandler = result.Middlewares[i](finalHandler)
-	}
+    for i := len(result.Middlewares) - 1; i >= 0; i-- {
+        finalHandler = result.Middlewares[i](finalHandler)
+    }
 
-	finalHandler.ServeHTTP(w, req)
+    finalHandler.ServeHTTP(w, req)
 }
 
 func handleErr(err error) (int, []byte) {

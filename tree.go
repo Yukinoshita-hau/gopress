@@ -2,7 +2,6 @@ package gopress
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 )
 
@@ -21,7 +20,7 @@ type Tree struct {
 	node *node
 }
 
-type Middleware func(next http.Handler) http.Handler
+type Middleware func(next Handler) Handler
 
 type node struct {
 	label    	string
@@ -33,7 +32,7 @@ type node struct {
 }
 
 type action struct {
-	Handler http.Handler
+	Handler Handler
 }
 
 type result struct {
@@ -56,7 +55,7 @@ func NewTree() *Tree {
 	}
 }
 
-func (t *Tree) Insert(methods []string, path string, handler http.Handler, middlewares ...Middleware) {
+func (t *Tree) Insert(methods []string, path string, handler Handler, middlewares ...Middleware) {
     curNode := t.node
 	if curNode == nil {
 		panic("Tree node is nil")

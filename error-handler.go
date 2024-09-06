@@ -1,13 +1,21 @@
 package gopress
 
-import "net/http"
+import (
+	"encoding/json"
+)
 
-type ErrorHandler func(http.ResponseWriter, *http.Request, error)
+func JsonErrorResponse(w Response, status int, message string) {
+	w.HttpResponse.WriteHeader(status)
+	json.NewEncoder(w.HttpResponse).Encode(map[string]string{
+		"error": message,
+	})
+}
 
-var errorHandler ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
+type ErrorHandler func(Response, *Request, error)
+
+var errorHandler ErrorHandler = func(w Response, _ *Request, err error) {
 	status, body := handleErr(err)
-	w.WriteHeader(status)
-	w.Write(body)
+	JsonErrorResponse(w, status, string(body))
 }
 
 func (r *Router) SetErrorHandler(handler ErrorHandler) {
