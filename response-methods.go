@@ -3,9 +3,7 @@ package gopress
 import (
 	"encoding/json"
 	"io"
-	"io"
 	"net/http"
-	"os"
 	"os"
 )
 
@@ -14,9 +12,9 @@ type Response struct {
 }
 
 func (r Response) Json(data map[string]interface{}) {
-func (r Response) Json(data map[string]interface{}) {
 	if err := json.NewEncoder(r.HttpResponse).Encode(data); err != nil {
 		JsonErrorResponse(r, http.StatusInternalServerError, err.Error())
+		return
 	}
 }
 
