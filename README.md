@@ -91,7 +91,7 @@ Middleware functions wrap handlers, allowing pre-processing (like logging, authe
 ```go
 func loggingMiddleware(next Handler) Handler {
     return HandlerFunction(func(w Response, r *Request) {
-        log.Println("Request received")
+        fmt.Println("Request received")
         next.ServeHTTP(w, r)
     })
 }
