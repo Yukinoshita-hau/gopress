@@ -11,10 +11,12 @@ type Response struct {
 	HttpResponse http.ResponseWriter
 }
 
-func (r Response) Json(data map[string]interface{}) {
+func (r Response) Json(data interface{}, statusCode int) {
+	r.HttpResponse.Header().Set("Content-Type", "application/json")
+	r.HttpResponse.WriteHeader(statusCode)
+ 
 	if err := json.NewEncoder(r.HttpResponse).Encode(data); err != nil {
-		JsonErrorResponse(r, http.StatusInternalServerError, err.Error())
-		return
+		http.Error(r.HttpResponse, `{"error": "Failed to encode JSON"}`, http.StatusInternalServerError)
 	}
 }
 
